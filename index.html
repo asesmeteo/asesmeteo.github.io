@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASES · Alertas de cordillera</title>
+<meta name="theme-color" content="#12263A">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#12263A;--ink:#F3F6F8;--muted:#9DB4C6;--line:#2C4660;--panel:#1A334B;--alert:#F2662D;--alert-ink:#12263A}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 17px/1.55 Barlow,system-ui,sans-serif}
+main{max-width:34rem;margin:0 auto;padding:2.5rem 1.25rem 4rem}
+h1{font:700 4.5rem/.9 "Barlow Condensed",Impact,sans-serif;letter-spacing:.04em;margin:0 0 .5rem}
+.lead{font:600 1.35rem/1.25 "Barlow Condensed",sans-serif;color:var(--muted);margin:0 0 2rem}
+p{margin:0 0 1rem}
+fieldset{border:0;border-top:1px solid var(--line);margin:1.5rem 0 0;padding:1rem 0 0}
+legend{font:600 1.25rem "Barlow Condensed",sans-serif;padding-right:.75rem;color:var(--ink)}
+label{display:flex;gap:.75rem;align-items:center;padding:.55rem 0;cursor:pointer}
+input[type=checkbox]{width:1.35rem;height:1.35rem;accent-color:var(--alert)}
+button{margin-top:2rem;width:100%;padding:1rem;border:0;border-radius:4px;background:var(--alert);color:var(--alert-ink);font:700 1.3rem "Barlow Condensed",sans-serif;letter-spacing:.03em;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+button:disabled{opacity:.6;cursor:default}
+#estado{margin-top:1rem;min-height:1.5rem;color:var(--muted)}
+.ios{display:none;margin-top:2rem;padding:1rem;background:var(--panel);border-left:4px solid var(--alert)}
+.ios.on{display:block}
+small{display:block;margin-top:2.5rem;color:var(--muted);font-size:.85rem;line-height:1.45}
+</style>
+</head>
+<body>
+<main>
+  <h1>ASES</h1>
+  <p class="lead">Alertas meteorológicas para la cordillera de San Juan.</p>
+  <p>Elegí las zonas y los tipos de aviso que querés recibir. Podés cambiarlos cuando quieras volviendo a esta página.</p>
+
+  <div id="ios" class="ios">
+    <strong>En iPhone, un paso previo:</strong> tocá el botón Compartir de Safari, elegí «Agregar a pantalla de inicio» y abrí ASES desde ese ícono. Después volvé a tocar «Activar alertas».
+  </div>
+
+  <fieldset>
+    <legend>Zonas</legend>
+    <label><input type="checkbox" name="zona" value="calingasta"> Calingasta y Barreal</label>
+    <label><input type="checkbox" name="zona" value="iglesia"> Iglesia y Rodeo</label>
+    <label><input type="checkbox" name="zona" value="agua_negra"> Paso de Agua Negra (Ruta 150)</label>
+    <label><input type="checkbox" name="zona" value="alta_cordillera"> Alta cordillera</label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Tipos de aviso</legend>
+    <label><input type="checkbox" name="tipo" value="nevadas"> Nevadas y ventiscas</label>
+    <label><input type="checkbox" name="tipo" value="viento"> Viento fuerte y Zonda</label>
+    <label><input type="checkbox" name="tipo" value="tormentas"> Tormentas eléctricas y granizo</label>
+    <label><input type="checkbox" name="tipo" value="aludes"> Riesgo de aludes</label>
+    <label><input type="checkbox" name="tipo" value="frio"> Frío extremo</label>
+  </fieldset>
+
+  <button id="btn" type="button">Activar alertas</button>
+  <div id="estado" role="status" aria-live="polite"></div>
+
+  <small>ASES es una consultora meteorológica privada. Estos avisos son propios y no reemplazan los comunicados del Servicio Meteorológico Nacional ni de Defensa Civil.</small>
+</main>
+
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<script>
+const ONESIGNAL_APP_ID = "PEGAR_AQUI_TU_APP_ID";
+
+window.OneSignalDeferred = window.OneSignalDeferred || [];
+OneSignalDeferred.push(async (OneSignal) => {
+  await OneSignal.init({ appId: ONESIGNAL_APP_ID });
+  window._os = OneSignal;
+});
+
+const estado = document.getElementById("estado");
+const btn = document.getElementById("btn");
+
+// Aviso para iPhone si no está instalada en la pantalla de inicio
+const esIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const instalada = window.navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
+if (esIOS && !instalada) document.getElementById("ios").classList.add("on");
+
+function leer(nombre) {
+  return [...document.querySelectorAll(`input[name=${nombre}]`)];
+}
+
+btn.addEventListener("click", async () => {
+  const OneSignal = window._os;
+  if (!OneSignal) { estado.textContent = "Todavía cargando. Probá de nuevo en unos segundos."; return; }
+  if (!leer("zona").some(c => c.checked) || !leer("tipo").some(c => c.checked)) {
+    estado.textContent = "Elegí al menos una zona y un tipo de aviso.";
+    return;
+  }
+  btn.disabled = true;
+  try {
+    await OneSignal.Notifications.requestPermission();
+    if (!OneSignal.Notifications.permission) {
+      estado.textContent = "Las notificaciones están bloqueadas. Habilitalas desde los ajustes del navegador y probá de nuevo.";
+      return;
+    }
+    // Un tag por opción: "1" si está elegida, "0" si no (así se pueden desactivar)
+    const tags = {};
+    leer("zona").forEach(c => tags["zona_" + c.value] = c.checked ? "1" : "0");
+    leer("tipo").forEach(c => tags["tipo_" + c.value] = c.checked ? "1" : "0");
+    OneSignal.User.addTags(tags);
+    estado.textContent = "Listo, alertas activadas.";
+  } catch (e) {
+    estado.textContent = "No se pudo activar. Revisá tu conexión y probá de nuevo.";
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
