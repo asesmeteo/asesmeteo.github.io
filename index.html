@@ -88,6 +88,11 @@ function leer(nombre) {
 btn.addEventListener("click", async () => {
   const OneSignal = window._os;
   if (!OneSignal) { estado.textContent = "Todavía cargando. Probá de nuevo en unos segundos."; return; }
+  if (!OneSignal.Notifications.isPushSupported()) {
+    estado.textContent = esIOS ? "En iPhone, primero agregá ASES a la pantalla de inicio (ver arriba)."
+                               : "Este navegador no admite notificaciones.";
+    return;
+  }
   if (!leer("zona").some(c => c.checked) || !leer("tipo").some(c => c.checked)) {
     estado.textContent = "Elegí al menos una zona y un tipo de aviso.";
     return;
@@ -99,17 +104,21 @@ btn.addEventListener("click", async () => {
       estado.textContent = "Las notificaciones están bloqueadas. Habilitalas desde los ajustes del navegador y probá de nuevo.";
       return;
     }
-    // Un tag por opción: "1" si está elegida, "0" si no (así se pueden desactivar)
-    const tags = {};
-    leer("zona").forEach(c => tags["zona_" + c.value] = c.checked ? "1" : "0");
-    leer("tipo").forEach(c => tags["tipo_" + c.value] = c.checked ? "1" : "0");
-    OneSignal.User.addTags(tags);
+    await OneSignal.User.PushSubscription.optIn();
+
+    const elegidas = [...leer("zona"), ...leer("tipo")].filter(c => c.checked).map(c => c.name + "_" + c.value);
+    const actuales = Object.keys(OneSignal.User.getTags() || {});
+    const sobran = actuales.filter(k => !elegidas.includes(k));
+    if (sobran.length) OneSignal.User.removeTags(sobran);
+    OneSignal.User.addTags(Object.fromEntries(elegidas.map(k => [k, "1"])));
+
     estado.textContent = "Listo, alertas activadas.";
   } catch (e) {
     estado.textContent = "No se pudo activar. Revisá tu conexión y probá de nuevo.";
   } finally {
     btn.disabled = false;
   }
+});
 });
 </script>
 </body>
